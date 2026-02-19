@@ -1,0 +1,675 @@
+home:
+  type: directory
+  children:
+    candidate:
+      type: directory
+      children:
+        .bashrc:
+          type: file
+          content: |
+            export PS1='candidate@fleetcore:~$ '
+            export PATH=/usr/local/bin:/usr/bin:/bin
+            alias ll='ls -la'
+        .ssh:
+          type: directory
+          children:
+            config:
+              type: file
+              content: |
+                Host github.com
+                  IdentityFile ~/.ssh/id_ed25519
+
+opt:
+  type: directory
+  children:
+    fleetcore:
+      type: directory
+      children:
+        README.md:
+          type: file
+          content: |
+            # FleetCore - Fleet Management Platform
+
+            A comprehensive fleet management system for tracking vehicles,
+            managing maintenance schedules, and optimizing routes.
+
+            ## Architecture
+
+            - **API Server**: Express.js REST API (port 3000)
+            - **Database**: PostgreSQL 15 (port 5432)
+            - **Cache**: Redis 7 (port 6379)
+            - **Queue**: Bull queue for async jobs
+            - **Frontend**: React dashboard (port 8080)
+
+            ## Quick Start
+
+            ```bash
+            docker-compose up -d
+            npm install
+            npm run migrate
+            npm run dev
+            ```
+
+            ## Project Structure
+
+            ```
+            src/
+            ├── api/          # REST API routes
+            ├── models/       # Database models
+            ├── services/     # Business logic
+            ├── middleware/    # Auth, rate limiting, logging
+            ├── config/       # Configuration files
+            └── utils/        # Shared utilities
+            ```
+        package.json:
+          type: file
+          content: |
+            {
+              "name": "fleetcore-api",
+              "version": "2.4.1",
+              "description": "FleetCore Fleet Management API",
+              "main": "dist/server.js",
+              "scripts": {
+                "dev": "ts-node-dev --respawn src/server.ts",
+                "build": "tsc",
+                "start": "node dist/server.js",
+                "test": "jest --coverage",
+                "test:watch": "jest --watch",
+                "lint": "eslint src/",
+                "migrate": "knex migrate:latest",
+                "migrate:rollback": "knex migrate:rollback",
+                "seed": "knex seed:run"
+              },
+              "dependencies": {
+                "express": "^4.18.2",
+                "knex": "^3.1.0",
+                "pg": "^8.11.3",
+                "redis": "^4.6.12",
+                "bull": "^4.12.0",
+                "jsonwebtoken": "^9.0.2",
+                "bcryptjs": "^2.4.3",
+                "helmet": "^7.1.0",
+                "cors": "^2.8.5",
+                "winston": "^3.11.0",
+                "joi": "^17.11.0",
+                "uuid": "^9.0.0"
+              },
+              "devDependencies": {
+                "typescript": "^5.3.3",
+                "ts-node-dev": "^2.0.0",
+                "jest": "^29.7.0",
+                "@types/express": "^4.17.21",
+                "eslint": "^8.56.0"
+              }
+            }
+        tsconfig.json:
+          type: file
+          content: |
+            {
+              "compilerOptions": {
+                "target": "ES2022",
+                "module": "commonjs",
+                "lib": ["ES2022"],
+                "outDir": "./dist",
+                "rootDir": "./src",
+                "strict": true,
+                "esModuleInterop": true,
+                "skipLibCheck": true,
+                "forceConsistentCasingInFileNames": true,
+                "resolveJsonModule": true,
+                "declaration": true,
+                "declarationMap": true,
+                "sourceMap": true
+              },
+              "include": ["src/**/*"],
+              "exclude": ["node_modules", "dist", "**/*.test.ts"]
+            }
+        docker-compose.yml:
+          type: file
+          content: |
+            version: '3.8'
+
+            services:
+              api:
+                build: .
+                ports:
+                  - "3000:3000"
+                environment:
+                  - NODE_ENV=development
+                  - DATABASE_URL=postgresql://fleetcore:fleetcore123@db:5432/fleetcore
+                  - REDIS_URL=redis://cache:6379
+                  - JWT_SECRET=dev-secret-change-in-production
+                depends_on:
+                  - db
+                  - cache
+                volumes:
+                  - .:/app
+                  - /app/node_modules
+
+              db:
+                image: postgres:15-alpine
+                environment:
+                  POSTGRES_DB: fleetcore
+                  POSTGRES_USER: fleetcore
+                  POSTGRES_PASSWORD: fleetcore123
+                ports:
+                  - "5432:5432"
+                volumes:
+                  - pgdata:/var/lib/postgresql/data
+
+              cache:
+                image: redis:7-alpine
+                ports:
+                  - "6379:6379"
+                command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+            volumes:
+              pgdata:
+        Dockerfile:
+          type: file
+          content: |
+            FROM node:20-alpine
+
+            WORKDIR /app
+
+            COPY package*.json ./
+            RUN npm ci --production=false
+
+            COPY . .
+            RUN npm run build
+
+            EXPOSE 3000
+
+            CMD ["node", "dist/server.js"]
+        .env.example:
+          type: file
+          content: |
+            NODE_ENV=development
+            PORT=3000
+            DATABASE_URL=postgresql://fleetcore:fleetcore123@localhost:5432/fleetcore
+            REDIS_URL=redis://localhost:6379
+            JWT_SECRET=change-me-in-production
+            LOG_LEVEL=debug
+            CORS_ORIGIN=http://localhost:8080
+        .gitignore:
+          type: file
+          content: |
+            node_modules/
+            dist/
+            .env
+            *.log
+            coverage/
+        knexfile.ts:
+          type: file
+          content: |
+            import type { Knex } from 'knex';
+
+            const config: Record<string, Knex.Config> = {
+              development: {
+                client: 'pg',
+                connection: process.env.DATABASE_URL,
+                migrations: {
+                  directory: './src/db/migrations',
+                },
+                seeds: {
+                  directory: './src/db/seeds',
+                },
+              },
+              production: {
+                client: 'pg',
+                connection: process.env.DATABASE_URL,
+                pool: { min: 2, max: 10 },
+                migrations: {
+                  directory: './src/db/migrations',
+                },
+              },
+            };
+
+            export default config;
+        src:
+          type: directory
+          children:
+            server.ts:
+              type: file
+              content: |
+                import express from 'express';
+                import cors from 'cors';
+                import helmet from 'helmet';
+                import { config } from './config';
+                import { logger } from './utils/logger';
+                import { vehicleRoutes } from './api/vehicles';
+                import { driverRoutes } from './api/drivers';
+                import { tripRoutes } from './api/trips';
+                import { maintenanceRoutes } from './api/maintenance';
+                import { errorHandler } from './middleware/errorHandler';
+                import { requestLogger } from './middleware/requestLogger';
+
+                const app = express();
+
+                app.use(helmet());
+                app.use(cors({ origin: config.corsOrigin }));
+                app.use(express.json());
+                app.use(requestLogger);
+
+                app.get('/health', (req, res) => {
+                  res.json({ status: 'ok', version: '2.4.1', uptime: process.uptime() });
+                });
+
+                app.use('/api/v1/vehicles', vehicleRoutes);
+                app.use('/api/v1/drivers', driverRoutes);
+                app.use('/api/v1/trips', tripRoutes);
+                app.use('/api/v1/maintenance', maintenanceRoutes);
+
+                app.use(errorHandler);
+
+                app.listen(config.port, () => {
+                  logger.info(`FleetCore API running on port ${config.port}`);
+                });
+            config:
+              type: directory
+              children:
+                index.ts:
+                  type: file
+                  content: |
+                    export const config = {
+                      port: parseInt(process.env.PORT || '3000'),
+                      databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/fleetcore',
+                      redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+                      jwtSecret: process.env.JWT_SECRET || 'dev-secret',
+                      corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+                      logLevel: process.env.LOG_LEVEL || 'info',
+                    };
+            api:
+              type: directory
+              children:
+                vehicles.ts:
+                  type: file
+                  content: |
+                    import { Router } from 'express';
+                    import { VehicleService } from '../services/VehicleService';
+
+                    export const vehicleRoutes = Router();
+                    const service = new VehicleService();
+
+                    // GET /api/v1/vehicles
+                    vehicleRoutes.get('/', async (req, res, next) => {
+                      try {
+                        const vehicles = await service.list();
+                        res.json({ data: vehicles, total: vehicles.length });
+                      } catch (err) {
+                        next(err);
+                      }
+                    });
+
+                    // GET /api/v1/vehicles/:id
+                    vehicleRoutes.get('/:id', async (req, res, next) => {
+                      try {
+                        const vehicle = await service.getById(req.params.id);
+                        if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+                        res.json({ data: vehicle });
+                      } catch (err) {
+                        next(err);
+                      }
+                    });
+
+                    // TODO: POST, PUT, DELETE endpoints
+                drivers.ts:
+                  type: file
+                  content: |
+                    import { Router } from 'express';
+                    export const driverRoutes = Router();
+
+                    // TODO: Implement driver CRUD endpoints
+                    driverRoutes.get('/', (req, res) => {
+                      res.json({ data: [], total: 0 });
+                    });
+                trips.ts:
+                  type: file
+                  content: |
+                    import { Router } from 'express';
+                    export const tripRoutes = Router();
+
+                    // TODO: Implement trip CRUD endpoints
+                    tripRoutes.get('/', (req, res) => {
+                      res.json({ data: [], total: 0 });
+                    });
+                maintenance.ts:
+                  type: file
+                  content: |
+                    import { Router } from 'express';
+                    export const maintenanceRoutes = Router();
+
+                    // TODO: Implement maintenance CRUD endpoints
+                    maintenanceRoutes.get('/', (req, res) => {
+                      res.json({ data: [], total: 0 });
+                    });
+            models:
+              type: directory
+              children:
+                Vehicle.ts:
+                  type: file
+                  content: |
+                    export interface Vehicle {
+                      id: string;
+                      vin: string;
+                      make: string;
+                      model: string;
+                      year: number;
+                      licensePlate: string;
+                      status: 'active' | 'maintenance' | 'retired';
+                      currentDriverId?: string;
+                      lastLocation?: { lat: number; lng: number };
+                      mileage: number;
+                      fuelLevel: number;
+                      createdAt: Date;
+                      updatedAt: Date;
+                    }
+                Driver.ts:
+                  type: file
+                  content: |
+                    export interface Driver {
+                      id: string;
+                      firstName: string;
+                      lastName: string;
+                      email: string;
+                      licenseNumber: string;
+                      licenseExpiry: Date;
+                      status: 'available' | 'on_trip' | 'off_duty';
+                      rating: number;
+                      totalTrips: number;
+                      createdAt: Date;
+                      updatedAt: Date;
+                    }
+                Trip.ts:
+                  type: file
+                  content: |
+                    export interface Trip {
+                      id: string;
+                      vehicleId: string;
+                      driverId: string;
+                      startLocation: { lat: number; lng: number; address: string };
+                      endLocation?: { lat: number; lng: number; address: string };
+                      startTime: Date;
+                      endTime?: Date;
+                      distance?: number;
+                      status: 'planned' | 'in_progress' | 'completed' | 'cancelled';
+                      route?: Array<{ lat: number; lng: number; timestamp: Date }>;
+                    }
+            services:
+              type: directory
+              children:
+                VehicleService.ts:
+                  type: file
+                  content: |
+                    import { Vehicle } from '../models/Vehicle';
+                    import { db } from '../db/connection';
+                    import { cache } from '../utils/cache';
+
+                    export class VehicleService {
+                      async list(filters?: { status?: string; make?: string }): Promise<Vehicle[]> {
+                        const cacheKey = `vehicles:list:${JSON.stringify(filters || {})}`;
+                        const cached = await cache.get(cacheKey);
+                        if (cached) return JSON.parse(cached);
+
+                        let query = db('vehicles').select('*');
+                        if (filters?.status) query = query.where('status', filters.status);
+                        if (filters?.make) query = query.where('make', filters.make);
+
+                        const vehicles = await query;
+                        await cache.set(cacheKey, JSON.stringify(vehicles), 'EX', 300);
+                        return vehicles;
+                      }
+
+                      async getById(id: string): Promise<Vehicle | null> {
+                        const cacheKey = `vehicles:${id}`;
+                        const cached = await cache.get(cacheKey);
+                        if (cached) return JSON.parse(cached);
+
+                        const vehicle = await db('vehicles').where('id', id).first();
+                        if (vehicle) await cache.set(cacheKey, JSON.stringify(vehicle), 'EX', 600);
+                        return vehicle || null;
+                      }
+
+                      async create(data: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>): Promise<Vehicle> {
+                        const [vehicle] = await db('vehicles').insert(data).returning('*');
+                        await cache.del('vehicles:list:*');
+                        return vehicle;
+                      }
+
+                      async update(id: string, data: Partial<Vehicle>): Promise<Vehicle | null> {
+                        const [vehicle] = await db('vehicles').where('id', id).update(data).returning('*');
+                        await cache.del(`vehicles:${id}`);
+                        await cache.del('vehicles:list:*');
+                        return vehicle || null;
+                      }
+
+                      async delete(id: string): Promise<boolean> {
+                        const count = await db('vehicles').where('id', id).del();
+                        await cache.del(`vehicles:${id}`);
+                        await cache.del('vehicles:list:*');
+                        return count > 0;
+                      }
+                    }
+            middleware:
+              type: directory
+              children:
+                errorHandler.ts:
+                  type: file
+                  content: |
+                    import { Request, Response, NextFunction } from 'express';
+                    import { logger } from '../utils/logger';
+
+                    export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction) {
+                      logger.error('Unhandled error', { error: err.message, stack: err.stack, path: req.path });
+                      res.status(500).json({ error: 'Internal server error' });
+                    }
+                requestLogger.ts:
+                  type: file
+                  content: |
+                    import { Request, Response, NextFunction } from 'express';
+                    import { logger } from '../utils/logger';
+
+                    export function requestLogger(req: Request, res: Response, next: NextFunction) {
+                      const start = Date.now();
+                      res.on('finish', () => {
+                        logger.info('Request completed', {
+                          method: req.method,
+                          path: req.path,
+                          status: res.statusCode,
+                          duration: Date.now() - start,
+                        });
+                      });
+                      next();
+                    }
+                auth.ts:
+                  type: file
+                  content: |
+                    import { Request, Response, NextFunction } from 'express';
+                    // TODO: Implement JWT authentication middleware
+                    export function authenticate(req: Request, res: Response, next: NextFunction) {
+                      // Placeholder - needs implementation
+                      next();
+                    }
+            utils:
+              type: directory
+              children:
+                logger.ts:
+                  type: file
+                  content: |
+                    import winston from 'winston';
+
+                    export const logger = winston.createLogger({
+                      level: process.env.LOG_LEVEL || 'info',
+                      format: winston.format.combine(
+                        winston.format.timestamp(),
+                        winston.format.json()
+                      ),
+                      transports: [
+                        new winston.transports.Console({
+                          format: winston.format.combine(
+                            winston.format.colorize(),
+                            winston.format.simple()
+                          ),
+                        }),
+                      ],
+                    });
+                cache.ts:
+                  type: file
+                  content: |
+                    import { createClient } from 'redis';
+
+                    // TODO: Initialize Redis client
+                    export const cache = {
+                      async get(key: string): Promise<string | null> {
+                        return null;
+                      },
+                      async set(key: string, value: string, ...args: any[]): Promise<void> {},
+                      async del(key: string): Promise<void> {},
+                    };
+            db:
+              type: directory
+              children:
+                connection.ts:
+                  type: file
+                  content: |
+                    import knex from 'knex';
+                    import { config } from '../config';
+
+                    export const db = knex({
+                      client: 'pg',
+                      connection: config.databaseUrl,
+                    });
+                migrations:
+                  type: directory
+                  children:
+                    20240101_create_vehicles.ts:
+                      type: file
+                      content: |
+                        import { Knex } from 'knex';
+
+                        export async function up(knex: Knex): Promise<void> {
+                          await knex.schema.createTable('vehicles', (table) => {
+                            table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+                            table.string('vin', 17).notNullable().unique();
+                            table.string('make').notNullable();
+                            table.string('model').notNullable();
+                            table.integer('year').notNullable();
+                            table.string('license_plate').notNullable();
+                            table.enum('status', ['active', 'maintenance', 'retired']).defaultTo('active');
+                            table.uuid('current_driver_id').references('id').inTable('drivers');
+                            table.jsonb('last_location');
+                            table.integer('mileage').defaultTo(0);
+                            table.decimal('fuel_level', 5, 2).defaultTo(100);
+                            table.timestamps(true, true);
+                          });
+                        }
+
+                        export async function down(knex: Knex): Promise<void> {
+                          await knex.schema.dropTable('vehicles');
+                        }
+                    20240102_create_drivers.ts:
+                      type: file
+                      content: |
+                        import { Knex } from 'knex';
+
+                        export async function up(knex: Knex): Promise<void> {
+                          await knex.schema.createTable('drivers', (table) => {
+                            table.uuid('id').primary().defaultTo(knex.raw('gen_random_uuid()'));
+                            table.string('first_name').notNullable();
+                            table.string('last_name').notNullable();
+                            table.string('email').notNullable().unique();
+                            table.string('license_number').notNullable().unique();
+                            table.date('license_expiry').notNullable();
+                            table.enum('status', ['available', 'on_trip', 'off_duty']).defaultTo('available');
+                            table.decimal('rating', 3, 2).defaultTo(5.0);
+                            table.integer('total_trips').defaultTo(0);
+                            table.timestamps(true, true);
+                          });
+                        }
+
+                        export async function down(knex: Knex): Promise<void> {
+                          await knex.schema.dropTable('drivers');
+                        }
+                seeds:
+                  type: directory
+                  children:
+                    seed_vehicles.ts:
+                      type: file
+                      content: |
+                        import { Knex } from 'knex';
+
+                        export async function seed(knex: Knex): Promise<void> {
+                          await knex('vehicles').del();
+                          await knex('vehicles').insert([
+                            { vin: '1HGCM82633A004352', make: 'Ford', model: 'Transit', year: 2023, license_plate: 'FC-001', status: 'active', mileage: 12450 },
+                            { vin: '2T1BURHE0JC067841', make: 'Mercedes', model: 'Sprinter', year: 2022, license_plate: 'FC-002', status: 'active', mileage: 34200 },
+                            { vin: '3FADP4BJ7KM123456', make: 'Volvo', model: 'FH16', year: 2024, license_plate: 'FC-003', status: 'maintenance', mileage: 5600 },
+                          ]);
+                        }
+        logs:
+          type: directory
+          children:
+            api.log:
+              type: file
+              content: |
+                2024-01-15T08:32:01.234Z [INFO] FleetCore API running on port 3000
+                2024-01-15T08:32:02.156Z [INFO] Database connection established
+                2024-01-15T08:32:02.341Z [INFO] Redis connection established
+                2024-01-15T08:33:15.112Z [INFO] Request completed { method: 'GET', path: '/health', status: 200, duration: 2 }
+                2024-01-15T08:34:22.445Z [INFO] Request completed { method: 'GET', path: '/api/v1/vehicles', status: 200, duration: 45 }
+                2024-01-15T08:35:01.678Z [ERROR] Redis connection lost - attempting reconnect
+                2024-01-15T08:35:03.890Z [WARN] Cache miss rate above threshold: 78%
+                2024-01-15T08:35:06.123Z [INFO] Redis reconnected successfully
+            error.log:
+              type: file
+              content: |
+                2024-01-14T23:45:01.234Z [ERROR] Connection refused to Redis at cache:6379
+                2024-01-14T23:45:01.235Z [ERROR] Stack: Error: connect ECONNREFUSED 172.18.0.3:6379
+                2024-01-15T02:12:33.456Z [ERROR] Query timeout on vehicles table - duration: 30012ms
+                2024-01-15T08:35:01.678Z [ERROR] Redis connection lost { code: 'ECONNRESET' }
+
+etc:
+  type: directory
+  children:
+    hosts:
+      type: file
+      content: |
+        127.0.0.1       localhost
+        ::1             localhost
+        172.18.0.2      api
+        172.18.0.3      db
+        172.18.0.4      cache
+    resolv.conf:
+      type: file
+      content: |
+        nameserver 127.0.0.11
+        options ndots:0
+
+var:
+  type: directory
+  children:
+    log:
+      type: directory
+      children:
+        syslog:
+          type: file
+          content: |
+            Jan 15 08:30:00 fleetcore-host systemd[1]: Starting FleetCore services...
+            Jan 15 08:30:01 fleetcore-host docker[1234]: Starting containers...
+            Jan 15 08:32:00 fleetcore-host docker[1234]: Container fleetcore-api started
+            Jan 15 08:32:01 fleetcore-host docker[1234]: Container fleetcore-db started
+            Jan 15 08:32:02 fleetcore-host docker[1234]: Container fleetcore-cache started
+
+tmp:
+  type: directory
+  children: {}
+
+usr:
+  type: directory
+  children:
+    local:
+      type: directory
+      children:
+        bin:
+          type: directory
+          children: {}
